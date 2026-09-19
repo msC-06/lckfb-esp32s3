@@ -1,0 +1,13 @@
+## IDF Component Manager Manifest File
+## my_drivers 依赖的外部组件：
+##   esp_lvgl_port / esp_lcd_touch*  -> 液晶屏 + 触摸
+##   esp_codec_dev                   -> ES8311(DAC) / ES7210(ADC)
+##   esp32-camera                    -> GC0308 等 DVP 摄像头
+dependencies:
+  idf:
+    version: '>=5.2'
+  espressif/esp_lvgl_port: ^2.3.0
+  espressif/esp_lcd_touch: ^1.1.2
+  espressif/esp_lcd_touch_ft5x06: ^1.0.7
+  espressif/esp_codec_dev: ^1.3.4
+  espressif/esp32-camera: ^2.0.15

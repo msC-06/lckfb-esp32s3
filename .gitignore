@@ -1,0 +1,23 @@
+# ESP-IDF build
+build/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+flash_args
+flasher_args.json
+partition_table/
+
+# vscode
+.vscode/!settings.json
+.vscode/*.log
+.vscode/extensions.json
+
+# 临时文件、日志
+*.log
+*.tmp
+verify_hzk.bin
+
+# 环境相关
+.env

@@ -1,0 +1,9 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  24K
+phy_init, data, phy,     0xf000,   4K
+factory,  app,  factory, ,        8M
+# HZK16 中文字库分区：SubType 0x40 是自定义 data 子类型
+# 字库有效数据 261,696 字节（87 区 x 94 位 x 32 字节），256K 刚好放下
+# 代码里用 esp_partition_find_first(DATA, 0x40, "fontbin") 查找
+fontbin,  data, 0x40,    ,        256K
+storage,  data, spiffs,  ,        3M
