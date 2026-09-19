@@ -1,4 +1,4 @@
-# ESP-IDF build
+# ESP-IDF 编译产物
 build/
 sdkconfig
 sdkconfig.old
@@ -9,12 +9,22 @@ flash_args
 flasher_args.json
 partition_table/
 
-# vscode
+# ESP-IDF 自动拉取的外部组件，不上传
+managed_components/
+
+# clangd本地索引文件，每台电脑不一样
+.clangd
+
+# vscode 临时日志，保留settings.json
 .vscode/!settings.json
 .vscode/*.log
 .vscode/extensions.json
 
-# 临时文件、日志
+# 废弃旧文件，不上传github
+esp32_s3_szp.c
+esp32_s3_szp.h
+
+# 临时文件、校验用bin
 *.log
 *.tmp
 verify_hzk.bin
