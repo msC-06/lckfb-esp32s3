@@ -1,16 +1,22 @@
 /**
  * @file    sdcard.h
- * @brief   TF 卡（microSD）驱动 + FAT 文件系统挂载
+ * @brief   TF 卡（microSD）驱动 + VFS FatFS 挂载
  *
  * 分层：本文件属于 my_drivers（TF 卡是板上外部器件），
- *       底层用 bsp 的 SDMMC 主机/槽位配置。
+ *       底层根据传输方式取用 bsp 的 SDMMC 或 SPI 配置，本模块只做“卡 + 文件系统”。
+ *
+ * 传输方式（SDCARD_TRANSPORT_SPI）：
+ *   - 0（默认）= SDMMC / SDIO 1 线：CLK=47 CMD=48 D0=21，本开发板就是这种接法；
+ *   - 1        = SPI 方式：需要板子按 CS/MOSI/MISO/CLK 四线接线，
+ *                并把 bsp_sdspi.h 里的引脚宏改成实际接线。
+ *   两种方式对上层完全一样（都是 VFS FatFS，挂载点 /sd）。
  *
  * 行为约定（重要）：
  *   - **绝不自动格式化**：挂载参数固定 format_if_mount_failed = false；
  *   - 没插卡 / 卡无法识别 -> sdcard_mount() 返回 ESP_ERR_NOT_FOUND，不注册文件系统；
  *   - 插了卡但不是 FAT32（例如 exFAT、未格式化）-> 返回 ESP_ERR_INVALID_STATE，
  *     只打印提示，不会动卡上的数据；
- *   - 挂载成功后可以直接用标准 C 文件接口：fopen("/sdcard/xxx.txt", "w")。
+ *   - 挂载成功后可以直接用标准 C 文件接口：fopen("/sd/xxx.txt", "w")。
  */
 
 #ifndef __SDCARD_H
@@ -24,8 +30,13 @@
 extern "C" {
 #endif
 
+/** 传输方式：0 = SDMMC(SDIO)，1 = SPI（默认 0，可在 CMake 里用 -D 覆盖） */
+#ifndef SDCARD_TRANSPORT_SPI
+#define SDCARD_TRANSPORT_SPI    0
+#endif
+
 /** 挂载点（用标准 C 库文件接口时带上这个前缀） */
-#define SDCARD_MOUNT_POINT      "/sdcard"
+#define SDCARD_MOUNT_POINT      "/sd"
 
 /** 打开文件数的上限 */
 #define SDCARD_MAX_FILES        5

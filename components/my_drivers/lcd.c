@@ -31,6 +31,13 @@
 
 static const char *TAG = "LCD";
 
+/* ============================ LVGL 任务参数 ============================ */
+
+/** LVGL 任务绑定的核心：1 = APP 核（Core 0 留给 WiFi/网络任务，避免界面被 TLS 饿死） */
+#define LCD_LVGL_TASK_CORE      1
+/** LVGL 任务优先级：低于音频采集任务（实时性），高于按键任务 */
+#define LCD_LVGL_TASK_PRIO      5
+
 /* 全局句柄 */
 static esp_lcd_panel_handle_t    panel_handle = NULL;
 static esp_lcd_panel_io_handle_t io_handle    = NULL;
@@ -381,6 +388,24 @@ void lcd_init(void)
     ESP_LOGI(TAG, "开始 LVGL 初始化...");
 
     lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+
+    /* ------------------------------------------------------------------
+     * LVGL 任务的核与优先级（默认值在这里不合适，必须改）：
+
+     * 默认 task_affinity = -1（不绑核），而 lcd_init() 是在 **main 任务**里跑的，
+     * main 任务被 sdkconfig 钉在 CPU0（CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0），
+     * 于是 LVGL 任务也落在 CPU0，和 app_wifi(5)、app_net(5) 抢同一个核，
+     * 而它自己的优先级是 4 —— **只要网络任务在跑 TLS/HTTP，LVGL 就被饿死**。
+     * 现象：识别结果和 AI 回复的聊天气泡一起冒出来、录音中的状态字也不刷新、
+     * 触摸发涩，整机“反应变慢”。
+
+     * 改成：绑到 APP 核（CPU1），优先级 5。
+     *   CPU1：app_audio(6) > taskLVGL(5) > app_key(4)  → 录音实时性仍然最高
+     *   CPU0：app_wifi(5) / app_net(5) 单独跑，不再和界面抢 CPU
+     * ------------------------------------------------------------------ */
+    lvgl_cfg.task_affinity = LCD_LVGL_TASK_CORE;
+    lvgl_cfg.task_priority = LCD_LVGL_TASK_PRIO;
+
     esp_err_t ret = lvgl_port_init(&lvgl_cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "lvgl_port_init 失败: %s", esp_err_to_name(ret));

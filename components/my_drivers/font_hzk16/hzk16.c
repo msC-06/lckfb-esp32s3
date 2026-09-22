@@ -72,6 +72,96 @@ uint16_t hzk16_unicode_to_gb(uint32_t unicode)
     return 0;   /* 不在 GB2312 字库中（例如 ASCII、生僻字） */
 }
 
+/* ============================ UTF-8 -> GB2312 ============================ */
+
+/**
+ * @brief  解码一个 UTF-8 字符
+ *
+ * @param  p  输入指针（指向字符首字节）
+ * @param  cp 输出 Unicode 码点
+ * @return >0 该字符占用的字节数；<0 非法序列
+ */
+static int hzk16_utf8_decode(const unsigned char *p, uint32_t *cp)
+{
+    if (p[0] < 0x80U) {                     /* ASCII */
+        *cp = p[0];
+        return 1;
+    }
+    if ((p[0] & 0xE0U) == 0xC0U) {          /* 2 字节 */
+        if ((p[1] & 0xC0U) != 0x80U) {
+            return -1;
+        }
+        *cp = ((uint32_t)(p[0] & 0x1FU) << 6) | (uint32_t)(p[1] & 0x3FU);
+        return 2;
+    }
+    if ((p[0] & 0xF0U) == 0xE0U) {          /* 3 字节（常用汉字） */
+        if (((p[1] & 0xC0U) != 0x80U) || ((p[2] & 0xC0U) != 0x80U)) {
+            return -1;
+        }
+        *cp = ((uint32_t)(p[0] & 0x0FU) << 12) |
+              ((uint32_t)(p[1] & 0x3FU) << 6) |
+              (uint32_t)(p[2] & 0x3FU);
+        return 3;
+    }
+    if ((p[0] & 0xF8U) == 0xF0U) {          /* 4 字节（emoji 等） */
+        if (((p[1] & 0xC0U) != 0x80U) || ((p[2] & 0xC0U) != 0x80U) || ((p[3] & 0xC0U) != 0x80U)) {
+            return -1;
+        }
+        *cp = ((uint32_t)(p[0] & 0x07U) << 18) |
+              ((uint32_t)(p[1] & 0x3FU) << 12) |
+              ((uint32_t)(p[2] & 0x3FU) << 6) |
+              (uint32_t)(p[3] & 0x3FU);
+        return 4;
+    }
+    return -1;
+}
+
+size_t hzk16_utf8_to_gb2312(const char *utf8, char *gb, size_t gb_size)
+{
+    if (utf8 == NULL || gb == NULL || gb_size < 2U) {
+        return 0;
+    }
+
+    const unsigned char *p  = (const unsigned char *)utf8;
+    size_t               out = 0;
+
+    while (*p != '\0') {
+        uint32_t cp  = 0;
+        int      len = hzk16_utf8_decode(p, &cp);
+        if (len < 0) {              /* 非法字节：跳过 */
+            p++;
+            continue;
+        }
+        p += len;
+
+        if (cp < 0x80U) {           /* ASCII：1 字节原样输出 */
+            if (out + 2U > gb_size) {
+                break;
+            }
+            gb[out++] = (char)cp;
+            continue;
+        }
+
+        uint16_t code = hzk16_unicode_to_gb(cp);
+        if (code == 0U) {           /* 字库里没有：输出 '?' */
+            if (out + 2U > gb_size) {
+                break;
+            }
+            gb[out++] = '?';
+            continue;
+        }
+
+        if (out + 3U > gb_size) {   /* 放不下一个完整汉字就停 */
+            break;
+        }
+        gb[out++] = (char)(code >> 8);
+        gb[out++] = (char)(code & 0xFFU);
+    }
+
+    gb[out] = '\0';
+    return out;
+}
+
 /* ============================ GB2312 -> 字模偏移 ============================ */
 
 /**

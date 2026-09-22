@@ -31,3 +31,12 @@ verify_hzk.bin
 
 # 环境相关
 .env
+
+# ============================================================
+# 私有密钥：绝对不要提交！
+#   入库的只有 components/app/app_config_template.h（占位符）
+#   真实密钥写进 components/app/app_config_secret.h（被忽略）
+#   用法：cp components/app/app_config_template.h components/app/app_config_secret.h
+# ============================================================
+app_config_secret.h
+**/app_config_secret.h

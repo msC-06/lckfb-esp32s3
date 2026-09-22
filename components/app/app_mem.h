@@ -1,0 +1,59 @@
+/**
+ * @file    app_mem.h
+ * @brief   空闲内存监控：空闲任务按间隔触发，低优先级任务读内存并上报
+ *
+ * 分层：app 层，只用 ESP-IDF 的堆统计接口 + esp_lvgl_port 的锁。
+ *
+ * 为什么分两个角色：
+ *   空闲任务（IDLE0）的栈只有 CONFIG_FREERTOS_IDLE_TASK_STACKSIZE（本工程 1536 字节），
+ *   在它里面打印日志（vsnprintf + UART 写）会直接把栈冲爆，
+ *   所以：
+ *     - 空闲任务钩子：只做一次时间判断，到点给监控任务发个通知（几十字节栈开销）；
+ *     - 监控任务（优先级 1，栈 4KB）：真正去读堆/LVGL 池并打印。
+ *   这样既满足“空闲任务定期检查”的意图，又不会踩空闲任务栈小、不能阻塞的坑。
+ *
+ * 上报内容：
+ *   内部 RAM / PSRAM 的空闲量与最大可分配块（最大块决定还能不能分配大缓冲）、
+ *   开机以来的历史最低空闲量、LVGL 自己那个内存池的占用率与碎片率；
+ *   内部 RAM 或 PSRAM 低于阈值时会额外打一条告警。
+ */
+
+#ifndef __APP_MEM_H
+#define __APP_MEM_H
+
+#include <stddef.h>
+
+#include "esp_err.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief  注册空闲任务钩子，并立刻打一次基线
+ *
+ * @return ESP_OK 成功；其它为注册失败的错误码
+ * @note   由 app_start() 调用；重复调用安全（只会注册一次）
+ */
+esp_err_t app_mem_monitor_init(void);
+
+/**
+ * @brief  立刻打印一次内存快照（不重置定期上报的计时）
+ *
+ * @param  where 触发位置说明，例如 "启动完成"、"搜索前"，只用于日志
+ */
+void app_mem_log(const char *where);
+
+/**
+ * @brief  打印一行精简内存信息（内部堆余量 / 最大块 / PSRAM），用于关键路径打点
+ *
+ * @param  where 触发位置说明，例如 "识别前"、"上传失败"
+ * @note   只打一行，适合在请求前后插桩；详细的（含任务栈、LVGL 池）用 app_mem_log()。
+ */
+void app_mem_log_brief(const char *where);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __APP_MEM_H */

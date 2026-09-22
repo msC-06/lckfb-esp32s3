@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "esp_err.h"
 #include "lvgl.h"
 
@@ -76,6 +77,30 @@ bool hzk16_has_glyph(uint32_t unicode);
  *         其他为 esp_partition_read 的返回值
  */
 esp_err_t hzk16_get_glyph(uint32_t unicode, uint8_t *bitmap_out);
+
+/* ============================ UTF-8 -> GB2312 ============================ */
+
+/**
+ * @brief  把 UTF-8 字符串转换成 GB2312 编码（字库的寻址编码）
+ *
+ * @param  utf8    输入的 UTF-8 字符串（LLM/ASR 返回的文本就是 UTF-8）
+ * @param  gb      输出缓冲区（GB2312 字节流，函数会补 '\0'）
+ * @param  gb_size 输出缓冲区长度（字节）
+ * @return 实际写入的字节数（不含结尾 '\0'）；
+ *         参数非法或缓冲区连一个字符都放不下时返回 0
+ *
+ * @note   规则：
+ *           - ASCII（< 0x80）原样输出 1 字节；
+ *           - 汉字查表转成 GB2312 双字节（高字节在前）；
+ *           - 字库里没有的字符（生僻字、emoji 等）输出 '?'；
+ *           - 缓冲区不够时按“完整字符”截断，不会写出半个汉字；
+ *           - 非法 UTF-8 字节直接跳过。
+ *
+ * @note   用 LVGL 显示时其实不需要本函数（hzk16 的 LVGL 字体内部已经做了
+ *         Unicode -> GB2312 转换）；本函数用于按字库编码统计/裁剪文本，
+ *         或者直接用 hzk16_read_glyph_by_gb() 手工取模绘制。
+ */
+size_t hzk16_utf8_to_gb2312(const char *utf8, char *gb, size_t gb_size);
 
 /* ============================ LVGL 接入 ============================ */
 

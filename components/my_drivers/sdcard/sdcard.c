@@ -1,14 +1,16 @@
 /**
  * @file    sdcard.c
- * @brief   TF 卡驱动实现：探测卡 -> 挂 FAT 文件系统（不自动格式化）
+ * @brief   TF 卡驱动实现：探测卡 -> 挂 VFS FatFS（不自动格式化）
  *
  * 关键点：
  *   1. mount_config.format_if_mount_failed 固定为 false —— 避免把 exFAT 卡/别人的卡误格式化；
- *   2. 通过 esp_vfs_fat_sdmmc_mount() 的返回值区分两种失败：
+ *   2. 通过挂载返回值区分两种失败：
  *        ESP_FAIL            -> 卡在，但文件系统不是 FAT（未格式化/exFAT）
  *        其它错误(超时等)     -> 基本可以认为没插卡
- *   3. 失败时 IDF 内部会调用 sdmmc_host_deinit()，所以不会残留半初始化状态，
- *      之后重新插卡再调一次 sdcard_mount() 即可。
+ *   3. 失败时 IDF 内部会调用 host deinit，所以不会残留半初始化状态，
+ *      之后重新插卡再调一次 sdcard_mount() 即可；
+ *   4. 传输方式由 SDCARD_TRANSPORT_SPI 选择（默认 SDMMC，本板接法），
+ *      两种方式对上层是同一套接口（挂载点 /sd）。
  */
 
 #include <string.h>
@@ -17,6 +19,9 @@
 #include "sdcard.h"
 
 #include "bsp/bsp_sdmmc.h"
+#if SDCARD_TRANSPORT_SPI
+#include "bsp/bsp_sdspi.h"
+#endif
 
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
@@ -36,13 +41,7 @@ esp_err_t sdcard_mount(void)
         return ESP_OK;                      /* 已经挂载，直接返回 */
     }
 
-    /* 1. 取 bsp 提供的 SDMMC 主机与槽位配置（1 线 + 板载引脚 + 内部上拉） */
-    sdmmc_host_t        host;
-    sdmmc_slot_config_t slot;
-    bsp_sdmmc_get_host(&host);
-    bsp_sdmmc_get_slot(&slot);
-
-    /* 2. 挂载参数：★ 绝对不允许自动格式化 */
+    /* 1. 挂载参数：★ 绝对不允许自动格式化 */
     esp_vfs_fat_mount_config_t mount_cfg = {
         .format_if_mount_failed = false,    /* ★ 挂载失败也不格式化，避免误擦卡上数据 */
         .max_files              = SDCARD_MAX_FILES,
@@ -51,7 +50,30 @@ esp_err_t sdcard_mount(void)
 
     ESP_LOGI(TAG, "正在检测/挂载 TF 卡 ...");
 
-    esp_err_t err = esp_vfs_fat_sdmmc_mount(SDCARD_MOUNT_POINT, &host, &slot, &mount_cfg, &s_card);
+    esp_err_t err;
+
+#if SDCARD_TRANSPORT_SPI
+    /* ---- SPI 方式：需要板子按 CS/MOSI/MISO/CLK 接线 ---- */
+    esp_err_t bus_err = bsp_sdspi_bus_init();
+    if (bus_err != ESP_OK) {
+        return bus_err;
+    }
+
+    sdmmc_host_t          host;
+    sdspi_device_config_t slot;
+    bsp_sdspi_get_host(&host);
+    bsp_sdspi_get_slot(&slot);
+
+    err = esp_vfs_fat_sdspi_mount(SDCARD_MOUNT_POINT, &host, &slot, &mount_cfg, &s_card);
+#else
+    /* ---- SDMMC(SDIO 1 线) 方式：本开发板的接法 ---- */
+    sdmmc_host_t        host;
+    sdmmc_slot_config_t slot;
+    bsp_sdmmc_get_host(&host);
+    bsp_sdmmc_get_slot(&slot);
+
+    err = esp_vfs_fat_sdmmc_mount(SDCARD_MOUNT_POINT, &host, &slot, &mount_cfg, &s_card);
+#endif
 
     if (err == ESP_FAIL) {
         /* 卡有应答，但 FAT 挂不上：多半是 exFAT 或者没格式化 */

@@ -17,3 +17,54 @@ CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM=y
 # 改成自定义分区表（app 8MB + spiffs 3MB，和旧工程一致）
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# TF 卡存档需要用长文件名（/sd/game_save/score_2048.txt），
+# FATFS 默认关闭了长文件名支持（8.3 短名模式），必须打开，
+# 否则 game_save(9 字符) 这类目录名在卡上"看不到"，fopen 直接失败
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=255
+
+# ===========================================================================
+# 对话掌机（按键录音 -> 百度 ASR -> DeepSeek LLM -> LCD 显示）需要的配置
+# ===========================================================================
+
+# 16MB Flash + 8MB Octal PSRAM，音频 PCM 缓冲（480KB）放 PSRAM
+CONFIG_ESP32S3_SPIRAM_SUPPORT=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# 主频与系统节拍
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_FREERTOS_HZ=1000
+
+# HTTPS 客户端 + JSON 解析需要足够多的 socket 与根证书
+CONFIG_LWIP_MAX_SOCKETS=10
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=y
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
+
+# 初始化的 main 任务要建界面/开机动画，栈给大一点
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# LVGL 自己的内存池：聊天气泡里的长文本都从这里分配。
+# 注意它是**内部 RAM 的静态数组**（不是 PSRAM），别盲目加大：
+# 内部 DIRAM 被它占多了，运行时的任务栈/队列就会分配失败。
+# 运行时空闲任务会打印这个池的占用率，够用就别动，不够再加。
+CONFIG_LV_MEM_SIZE=65536
+CONFIG_LV_MEM_SIZE_KILOBYTES=64
+
+# 允许把 .bss 放到 PSRAM：大块文本缓冲（HTTP 响应、ASR/LLM 文本、工具结果）
+# 用 EXT_RAM_BSS_ATTR 标一下就能放进 8MB PSRAM，给内部 DIRAM 留出运行时余量。
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
+# 允许任务栈分配在 PSRAM（本工程任务栈仍然走内部 RAM，这里只是放宽限制）
+CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
+
+# ---------------------------------------------------------------------------
+# 开发阶段如果想“跳过 TLS 证书校验”（例如设备时间不对导致证书校验失败），
+# 可以打开下面两行；生产环境请保持关闭，让 IDF 用内置根证书校验服务器。
+#   CONFIG_ESP_TLS_INSECURE=y
+#   CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
+# 打开之后，再把 components/app/app_config.h 里的 APP_TLS_USE_CA_BUNDLE 改成 0。
+# ---------------------------------------------------------------------------

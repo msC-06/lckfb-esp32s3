@@ -2,6 +2,7 @@
 #   board/        聚合层：board_init() 一次完成所有硬件初始化
 #   pca9557/      IO 扩展芯片（LCD_CS / PA_EN / DVP_PWDN）
 #   audio/        ES8311 喇叭 + ES7210 麦克风（I2S）
+#   audio/        audio_recorder.c：录音器（PSRAM 缓冲，16k/16bit/单声道）
 #   camera/       GC0308 DVP 摄像头
 #   sdcard/       TF 卡 + FAT 文件系统挂载（不自动格式化）
 #   font_hzk16/   HZK16 中文字库（hzk16_unicode_table.c 由脚本生成）
@@ -13,6 +14,7 @@ idf_component_register(
         "lcd.c"
         "pca9557/pca9557.c"
         "audio/audio.c"
+        "audio/audio_recorder.c"
         "camera/camera.c"
         "sdcard/sdcard.c"
         "net/net.c"
@@ -24,8 +26,11 @@ idf_component_register(
     PRIV_REQUIRES
         driver
         bsp
+        heap
         esp_partition
         esp_driver_sdmmc
+        esp_driver_sdspi
+        esp_driver_spi
         sdmmc
         fatfs
         vfs
